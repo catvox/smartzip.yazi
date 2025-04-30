@@ -1,5 +1,5 @@
 local M = {}
--- 检查文件是否存在
+-- 功能函数:file_exists 检查文件是否存在
 local function file_exists(name)
     local f = io.open(name, "r")
     if f ~= nil then
@@ -9,6 +9,36 @@ local function file_exists(name)
         return false
     end
 end
+
+-- 功能函数:is_directory,判断选中的文件是文件夹还是文件
+local function is_directory(file)
+    -- 检查文件对象是否有 is_dir 属性
+    if file and file.is_dir ~= nil then
+        return file.is_dir -- 如果是文件夹，返回 true；否则返回 false
+    end
+    -- 如果没有 is_dir 属性，可以通过其他方式判断
+    -- 例如检查文件路径是否以斜杠结尾（仅适用于某些系统）
+    local path = tostring(file.url)
+    return path:sub(-1) == "/" or path:sub(-1) == "\\"
+end
+
+-- 功能函数:get_selected_files,获取当前活动标签页的文件夹列表和文件列表,获得选择的文件夹列表fold_list和选择的文件列表file_list
+-- local get_selected_files = ya.sync(function()
+--     local tab = cx.active                  -- 获取当前活动标签页
+--     local fold_list = {}                   -- 初始化文件夹列表
+--     local file_list = {}                   -- 初始化文件列表
+
+--     for _, file in ipairs(tab.selected) do -- 遍历选中的文件
+--         if is_directory(file) then
+--             table.insert(fold_list, file)  -- 如果是文件夹，添加到文件夹列表
+--         else
+--             table.insert(file_list, file)  -- 否则添加到文件列表
+--         end
+--     end
+
+--     return fold_list, file_list -- 返回文件夹列表和文件列表
+-- end)
+
 
 -- 获取需要压缩的文件列表和默认的归档文件名
 local get_compression_target = ya.sync(function()
@@ -43,21 +73,19 @@ local get_compression_target = ya.sync(function()
     return paths, default_name
 end)
 
--- 调用压缩命令
-local function invoke_compress_command(paths)
-    for _, path in ipairs(paths) do
-        local name = path:match("([^/\\]+)$") -- 获取目录名称
-        local output_file = name .. ".zip" -- 生成输出文件名
-        -- 构建命令字符串
-        local cmd_output, err_code = Command("7z") --创建mkdwarfs命令执行对象
-            :args({ "a","-r", "-tzip", output_file, path }) -- 设置压缩命令参数
-            :stderr(Command.PIPED)                            -- 将标准错误重定向到管道
-            :output()                                         -- 执行命令并获取输出
+local function invoke_7z_command(paths)
+    for _, path in ipairs(path) do
+        local file_name = path:match("([^/\\]+)$") -- 获取目录名称
+        local archive_name = file_name .. ".zip"   -- 生成输出文件名
+        local cmd_output, err_code = Command("7z") --创建7z命令执行对象
+            :args({ "a","-r", archive_name, path })     -- 设置压缩命令参数
+            :stderr(Command.PIPED)                 -- 将标准错误重定向到管道
+            :output()
 
         if err_code ~= nil then
             -- 如果命令执行失败，显示错误通知
             ya.notify({
-                title = "Failed to run compress command",
+                title = "Failed to run 7z command",
                 content = "Status: " .. err_code,
                 timeout = 5.0,
                 level = "error",
@@ -75,16 +103,48 @@ local function invoke_compress_command(paths)
 end
 
 
--- entry 函数用于处理用户输入并创建归档文件
+local function invoke_compress_command(paths)
+    for _, path in ipairs(paths) do
+        local name = path:match("([^/\\]+)$") -- 获取目录名称
+        local output_file = name .. ".dwarfs" -- 生成输出文件名
+
+        -- 构建命令字符串
+        local cmd_output, err_code = Command("mkdwarfs")      --创建mkdwarfs命令执行对象
+            :args({ "-i", path, "-o", output_file, "-N", 6 }) -- 设置压缩命令参数
+            :stderr(Command.PIPED)                            -- 将标准错误重定向到管道
+            :output()                                         -- 执行命令并获取输出
+
+        if err_code ~= nil then
+            -- 如果命令执行失败，显示错误通知
+            ya.notify({
+                title = "Failed to run dwarfs command",
+                content = "Status: " .. err_code,
+                timeout = 5.0,
+                level = "error",
+            })
+        elseif not cmd_output.status.success then
+            -- 如果命令执行失败，显示错误通知
+            ya.notify({
+                title = "Compression failed: status code " .. cmd_output.status.code,
+                content = cmd_output.stderr,
+                timeout = 5.0,
+                level = "error",
+            })
+        end
+    end
+end
+
+
+-- entry 主程入口函数格式
 function M:entry(job)
     -- 获取默认的归档格式
     local action = job.args[1]
     local default_fmt = job.args[2]
-    if action == "7z" then
+    if action == "archive" then
         -- 定义候选项
         local cand_index = ya.which({
             cands = {
-                { on = "y", desc = "Yes, create dwarfs archive" },
+                { on = "y", desc = "Yes, create zip archive" },
                 { on = "n", desc = "No, cancel operation" },
             },
             silent = false, -- 显示按键指示器的 UI
@@ -94,12 +154,15 @@ function M:entry(job)
         if cand_index == 1 then
             -- 用户选择了 "y"
             local paths, _ = get_compression_target()
-            invoke_compress_command(paths)
+            ya.dbg("paths=","patherror"paths)
+            ya.hide()
+            invoke_7z_command(paths)
+            ya.dbg("errir",invoke_7z_command(paths))
         elseif cand_index == 2 then
             -- 用户选择了 "n"
             ya.notify({
                 title = "Operation Cancelled",
-                content = "You chose not to create dwarfs.",
+                content = "You chose not to create zip.",
                 timeout = 3.0,
                 level = "info",
             })
@@ -114,19 +177,7 @@ function M:entry(job)
             })
             return
         end
-    -- if use dwarfs mount command
-    elseif action == "dwarfs" then
-        local _, default_name = get_compression_target()
-        -- 获取用户选择的 .dwarfs 文件
-        local mount_point, mount_event = ya.input({
-            title = "Enter mount point path:",
-            value = "j:",
-            position = { "top-center", y = 3, w = 40 },
-        })
-        if mount_event ~= 1 then
-            return -- 如果用户取消输入，退出
-        end
-        invoke_mount_command(default_name, mount_point)
+        -- if use dwarfs mount command
     else
         ya.notify({
             title = "Invalid action",
