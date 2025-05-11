@@ -1,16 +1,20 @@
 local M = {}
--- 检查文件是否存在
-local function file_exists(name)
-    local f = io.open(name, "r")
-    if f ~= nil then
-        io.close(f)
-        return true
-    else
-        return false
-    end
+
+
+
+
+
+-- 调用7z压缩
+local function compress_by_7z(default_name, path)
+    -- 调用7z压缩
+    local cmd_output, err_code = Command("7z") --创建7z命令执行对象
+            :args({ "a","-r", "-tzip", output_file, file_path }) -- 设置压缩命令参数
+            :stderr(Command.PIPED)                            -- 将标准错误重定向到管道
+            :output() 
+
 end
 
--- 获取需要压缩的文件列表和默认的归档文件名
+--! 获取需要压缩的文件列表和默认的归档文件名
 local get_compression_target = ya.sync(function()
     -- 获取当前活动标签页:
     local tab = cx.active
@@ -43,13 +47,31 @@ local get_compression_target = ya.sync(function()
     return paths, default_name
 end)
 
--- 调用压缩命令
-local function invoke_compress_command(paths)
+
+-- 压缩方式一：
+local function compress_at1()
+    local name = ya.input({
+        title = "Enter archive name:",
+        value = "archive",
+        position = { "center", w = 50 },
+    })
+    local paths, _ = get_compression_target()
+    compress_by_7z(name, paths)     
+end
+
+local function compress_1b1()
+    
+    
+end
+
+
+--! compress_each_file s
+local function compress_each_file(paths)
     for _, path in ipairs(paths) do
         local name = path:match("([^/\\]+)$") -- 获取目录名称
         local output_file = name .. ".zip" -- 生成输出文件名
         -- 构建命令字符串
-        local cmd_output, err_code = Command("7z") --创建mkdwarfs命令执行对象
+        local cmd_output, err_code = Command("7z") --创建7z命令执行对象
             :args({ "a","-r", "-tzip", output_file, path }) -- 设置压缩命令参数
             :stderr(Command.PIPED)                            -- 将标准错误重定向到管道
             :output()                                         -- 执行命令并获取输出
@@ -74,7 +96,10 @@ local function invoke_compress_command(paths)
     end
 end
 
+-- compress_all_to_one 压缩所有文件到一个归档文件
+local function compress_all_to_one(paths)
 
+end
 -- entry 函数用于处理用户输入并创建归档文件
 function M:entry(job)
     -- 获取默认的归档格式
@@ -94,7 +119,7 @@ function M:entry(job)
         if cand_index == 1 then
             -- 用户选择了 "y"
             local paths, _ = get_compression_target()
-            invoke_compress_command(paths)
+            compress_each_file(paths)
         elseif cand_index == 2 then
             -- 用户选择了 "n"
             ya.notify({
