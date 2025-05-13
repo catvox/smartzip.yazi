@@ -12,7 +12,7 @@ end
 -- 检查是否为 Windows 系统
 local is_windows = ya.target_family() == "windows"
 
--- 创建选中或悬停的文件路径表：path = 文件名
+--  创建选中或悬停的文件路径表：path = 文件名
 local selected_or_hovered = ya.sync(function()
     local tab, paths, names, path_fnames = cx.active, {}, {}, {}
     for _, u in pairs(tab.selected) do
