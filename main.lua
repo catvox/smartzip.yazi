@@ -64,7 +64,38 @@ local function compress_1b1()
     
 end
 
+local function compress_each_file(paths)
+    for _, path in ipairs(paths) do
+        -- 获取目录和名称
+        local dir, name = path:match("^(.*)[/\\]([^/\\]+)$")
+        if not dir then
+            dir = "." -- 当前目录
+            name = path
+        end
+        local output_file = dir .. "/" .. name .. ".zip" -- 生成完整输出路径
+        -- 构建命令字符串
+        local cmd_output, err_code = Command("7z")
+            :args({ "a", "-r", "-tzip", output_file, path })
+            :stderr(Command.PIPED)
+            :output()
 
+        if err_code ~= nil then
+            ya.notify({
+                title = "Failed to run compress command",
+                content = "Status: " .. err_code,
+                timeout = 5.0,
+                level = "error",
+            })
+        elseif not cmd_output.status.success then
+            ya.notify({
+                title = "Compression failed: status code " .. cmd_output.status.code,
+                content = cmd_output.stderr,
+                timeout = 5.0,
+                level = "error",
+            })
+        end
+    end
+end
 --! compress_each_file s
 local function compress_each_file(paths)
     for _, path in ipairs(paths) do
